@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:simple_biometric/photo_screen.dart';
 
 void main() {
   runApp(const MainApp());
@@ -44,7 +45,8 @@ class _HomePageState extends State<HomePage> {
           return;
         }
         if (availableBiometrics.contains(BiometricType.strong) ||
-            availableBiometrics.contains(BiometricType.fingerprint)) {
+            availableBiometrics.contains(BiometricType.fingerprint) ||
+            availableBiometrics.contains(BiometricType.face)) {
           bool didAuthenticate = await _localAuthentication.authenticate(
               localizedReason: 'Authenticate using your biometric data',
               options: const AuthenticationOptions(
@@ -52,9 +54,10 @@ class _HomePageState extends State<HomePage> {
                   useErrorDialogs: true,
                   stickyAuth: false));
           if (didAuthenticate) {
-            setState(() {
-              _returnAuthorized = "Fingerprint success";
-            });
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const PhotoScreen()),
+            );
           } else {
             setState(() {
               _returnAuthorized = "Auth Failed";
@@ -110,7 +113,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> authenticBiometric() async {
     try {
       final processedByteArray = await _platform.invokeMethod('authenticate');
-      print(processedByteArray);
+      debugPrint("$processedByteArray");
       // Handle processedByteArray received from native side
     } on PlatformException catch (e) {
       // Handle platform exceptions
@@ -141,6 +144,15 @@ class _HomePageState extends State<HomePage> {
 
     var abc = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high);
+    var lat = abc.latitude;
+    var long = abc.longitude;
+    debugPrint("lat -> $lat | long -> $long");
+  }
+
+  @override
+  void initState() {
+    _getCurrentLocation();
+    super.initState();
   }
 
   @override

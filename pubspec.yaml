@@ -10,7 +10,9 @@ dependencies:
   app_settings: ^5.1.1
   flutter:
     sdk: flutter
+  flutter_otp_text_field: ^1.1.1
   geolocator: ^11.0.0
+  image_picker: ^1.0.7
   intl: ^0.18.1
   local_auth: ^2.1.8
   retrofit: ^4.1.0
