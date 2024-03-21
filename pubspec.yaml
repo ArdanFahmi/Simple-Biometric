@@ -1,0 +1,26 @@
+name: simple_biometric
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.2.3 <4.0.0'
+
+dependencies:
+  app_settings: ^5.1.1
+  flutter:
+    sdk: flutter
+  geolocator: ^11.0.0
+  intl: ^0.18.1
+  local_auth: ^2.1.8
+  retrofit: ^4.1.0
+  url_launcher: ^6.2.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+  json_serializable: ^6.7.1
+
+flutter:
+  uses-material-design: true
