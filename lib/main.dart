@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simple_biometric/photo_screen.dart';
 
 void main() {
@@ -146,6 +147,11 @@ class _HomePageState extends State<HomePage> {
         desiredAccuracy: LocationAccuracy.high);
     var lat = abc.latitude;
     var long = abc.longitude;
+
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('pref_lat', lat);
+    await prefs.setDouble('pref_long', long);
+
     debugPrint("lat -> $lat | long -> $long");
   }
 

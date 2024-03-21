@@ -14,15 +14,20 @@ dependencies:
   geolocator: ^11.0.0
   image_picker: ^1.0.7
   intl: ^0.18.1
+  json_annotation: ^4.8.1
   local_auth: ^2.1.8
   retrofit: ^4.1.0
+  shared_preferences: ^2.2.2
   url_launcher: ^6.2.5
+  dio:
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
   json_serializable: ^6.7.1
+  build_runner: ^2.4.8
+  retrofit_generator:
 
 flutter:
   uses-material-design: true
