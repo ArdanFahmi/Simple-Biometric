@@ -17,13 +17,15 @@ class _PinScreenState extends State<PinScreen> {
     if (pin != "123456") {
       _showSnackbar("Pin Salah!", Colors.red);
     } else {
-      final dio = Dio(); // Initialize Dio
+      final dio = Dio(); 
       dio.interceptors.add(
         LogInterceptor(
+          requestBody: true,
+          responseBody: true,
           logPrint: (o) => debugPrint(o.toString()),
         ),
       );
-      final client = ApiClient(Dio());
+      final client = ApiClient(dio);
       try {
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         var lat = prefs.getDouble("pref_lat");
