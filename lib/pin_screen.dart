@@ -1,9 +1,8 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_otp_text_field/flutter_otp_text_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simple_biometric/model/req_checklog.dart';
-import 'package:simple_biometric/service/retrofit/api_client.dart';
+import 'package:simple_biometric/service/database/database_helper.dart';
 import 'package:simple_biometric/utils/common.dart';
 
 class PinScreen extends StatefulWidget {
@@ -15,18 +14,12 @@ class PinScreen extends StatefulWidget {
 class _PinScreenState extends State<PinScreen> {
   void _handleSubmitPin(String pin) async {
     if (pin != "123456") {
-      _showSnackbar("Pin Salah!", Colors.red);
+      showSnackbar(context, "Pin Salah!", Colors.red);
     } else {
-      final dio = Dio(); 
-      dio.interceptors.add(
-        LogInterceptor(
-          requestBody: true,
-          responseBody: true,
-          logPrint: (o) => debugPrint(o.toString()),
-        ),
-      );
-      final client = ApiClient(dio);
       try {
+        var dbHelper = DatabaseHelper();
+        await dbHelper.initDatabase();
+
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         var lat = prefs.getDouble("pref_lat");
         var long = prefs.getDouble("pref_long");
@@ -46,44 +39,17 @@ class _PinScreenState extends State<PinScreen> {
             machine_id: "",
             company_id: "LV0036");
 
-        final post = await client.checklog(request);
-        var result = post.result ?? false;
-        if (result) {
-          //success
-          _showSnackbar(post.message ?? "Success Save Data", Colors.green);
+        var insertCount = await dbHelper.insertPresence(request);
+        if (insertCount > 0) {
+          showSnackbar(context, "Data berhasil tersimpan", Colors.green);
         } else {
-          //failed
-          _showSnackbar(post.message ?? "Failed Save Data", Colors.red);
+          showSnackbar(context, "Data gagal tersimpan", Colors.red);
         }
       } catch (e) {
+        showSnackbar(context, "Error menyimpan data: $e", Colors.red);
         rethrow;
       }
     }
-  }
-
-  void _showSnackbar(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        action: SnackBarAction(
-          textColor: Colors.white,
-          label: 'Tutup',
-          onPressed: () {
-            // Code to execute.
-          },
-        ),
-        backgroundColor: color,
-        content: Text(msg),
-        duration: const Duration(milliseconds: 1500),
-        //width: 280.0, // Width of the SnackBar.
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8.0, // Inner padding for SnackBar content.
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10.0),
-        ),
-      ),
-    );
   }
 
   @override

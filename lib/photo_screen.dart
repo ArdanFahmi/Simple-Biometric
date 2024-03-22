@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:simple_biometric/pin_screen.dart';
+import 'package:simple_biometric/utils/common.dart';
 
 class PhotoScreen extends StatefulWidget {
   const PhotoScreen({Key? key}) : super(key: key);
@@ -37,33 +38,8 @@ class _PhotoScreenState extends State<PhotoScreen> {
         MaterialPageRoute(builder: (context) => const PinScreen()),
       );
     } else {
-      _showSnackbar();
+      showSnackbar(context, "Foto kosong", Colors.amber);
     }
-  }
-
-  void _showSnackbar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        action: SnackBarAction(
-          textColor: Colors.white,
-          label: 'Tutup',
-          onPressed: () {
-            // Code to execute.
-          },
-        ),
-        backgroundColor: Colors.red,
-        content: const Text('Foto Kosong!'),
-        duration: const Duration(milliseconds: 1500),
-        //width: 280.0, // Width of the SnackBar.
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8.0, // Inner padding for SnackBar content.
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10.0),
-        ),
-      ),
-    );
   }
 
   @override

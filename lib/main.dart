@@ -1,10 +1,14 @@
 import 'package:app_settings/app_settings.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simple_biometric/model/req_checklog.dart';
 import 'package:simple_biometric/photo_screen.dart';
+import 'package:simple_biometric/service/database/database_helper.dart';
+import 'package:simple_biometric/service/retrofit/api_client.dart';
 
 void main() {
   runApp(const MainApp());
@@ -33,6 +37,7 @@ class _HomePageState extends State<HomePage> {
   final LocalAuthentication _localAuthentication = LocalAuthentication();
   String _returnAuthorized = "Not Authorized";
   static const _platform = MethodChannel('biometric_channel');
+  bool _isPendingPresence = false;
 
   Future<void> _registerFingerprint() async {
     try {
@@ -155,9 +160,55 @@ class _HomePageState extends State<HomePage> {
     debugPrint("lat -> $lat | long -> $long");
   }
 
+  void _getPresenceDb() async {
+    var dbHelper = DatabaseHelper();
+    await dbHelper.initDatabase();
+
+    var presences = await dbHelper.getPresences();
+    if (presences.isEmpty) {
+      setState(() {
+        _isPendingPresence = false;
+      });
+    } else {
+      setState(() {
+        _isPendingPresence = true;
+      });
+      for (var x in presences) {
+        await _submitApi(x);
+      }
+      return _getPresenceDb();
+    }
+  }
+
+  Future<void> _submitApi(ReqChecklog request) async {
+    final dio = Dio();
+    dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        logPrint: (o) => debugPrint(o.toString()),
+      ),
+    );
+    final client = ApiClient(dio);
+
+    final post = await client.checklog(request);
+    var result = post.result ?? false;
+    if (result) {
+      //success
+      await _deletePresence(request);
+    }
+  }
+
+  Future<void> _deletePresence(ReqChecklog data) async {
+    var dbHelper = DatabaseHelper();
+    await dbHelper.initDatabase();
+    dbHelper.deletePresence(data.checklog_timestamp ?? "");
+  }
+
   @override
   void initState() {
     _getCurrentLocation();
+    _getPresenceDb();
     super.initState();
   }
 
@@ -175,7 +226,28 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(
             height: 20,
           ),
-          Text(_returnAuthorized)
+          Text(_returnAuthorized),
+          const SizedBox(
+            height: 40.0,
+          ),
+          Container(
+              padding: const EdgeInsets.all(16.0),
+              child: Visibility(
+                visible: _isPendingPresence,
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Upload data ke server"),
+                    SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.black)),
+                    )
+                  ],
+                ),
+              ))
         ],
       )),
     );
