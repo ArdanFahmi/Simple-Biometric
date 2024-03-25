@@ -49,8 +49,9 @@ class DatabaseHelper {
     var result = 0;
     try {
       debugPrint("Delete data ID -> $id");
-      result = await db
-          .delete("Presence", where: "checklog_timestamp = ?", whereArgs: [id]);
+      result = await db.delete("Presence",
+          where: "checklog_timestamp = ?",
+          whereArgs: [id]); // TODO : don't forget modif with data ID
       debugPrint("result delete -> $result");
     } catch (e) {
       debugPrint("Error delete data: $e");

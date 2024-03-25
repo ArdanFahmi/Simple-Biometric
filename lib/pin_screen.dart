@@ -42,6 +42,7 @@ class _PinScreenState extends State<PinScreen> {
         var insertCount = await dbHelper.insertPresence(request);
         if (insertCount > 0) {
           showSnackbar(context, "Data berhasil tersimpan", Colors.green);
+          _navigateHome();
         } else {
           showSnackbar(context, "Data gagal tersimpan", Colors.red);
         }
@@ -50,6 +51,17 @@ class _PinScreenState extends State<PinScreen> {
         rethrow;
       }
     }
+  }
+
+  void _navigateHome() {
+    // TODO : Please dont use navigator.pop
+    Navigator.pop(context);
+    Navigator.pop(context);
+    // Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
+    //   builder: (context) {
+    //     return const HomePage();
+    //   },
+    // ), (route) => false);
   }
 
   @override

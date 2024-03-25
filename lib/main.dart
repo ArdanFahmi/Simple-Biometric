@@ -7,12 +7,16 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simple_biometric/model/req_checklog.dart';
 import 'package:simple_biometric/photo_screen.dart';
 import 'package:simple_biometric/service/database/database_helper.dart';
 import 'package:simple_biometric/service/network/internet_checker.dart';
 import 'package:simple_biometric/service/retrofit/api_client.dart';
+import 'package:simple_biometric/state/biometric_auth_state.dart';
+import 'package:simple_biometric/state/internet_state.dart';
+import 'package:simple_biometric/state/presence_state.dart';
 import 'package:simple_biometric/utils/common.dart';
 
 void main() {
@@ -40,9 +44,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final LocalAuthentication _localAuthentication = LocalAuthentication();
-  String _returnAuthorized = "Not Authorized";
   static const _platform = MethodChannel('biometric_channel');
-  bool _isPendingPresence = false;
 
   Future<void> _registerFingerprint() async {
     try {
@@ -65,29 +67,20 @@ class _HomePageState extends State<HomePage> {
                   useErrorDialogs: true,
                   stickyAuth: false));
           if (didAuthenticate) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const PhotoScreen()),
-            );
+            _navigateNextScreen();
           } else {
-            setState(() {
-              _returnAuthorized = "Auth Failed";
-            });
+            BiometricAuthState.instance.returnAuthorized = "Auth Failed";
           }
         } else {
-          setState(() {
-            _returnAuthorized = "Device not support fingerprint";
-          });
+          BiometricAuthState.instance.returnAuthorized =
+              "Device not support fingerprint";
         }
       } else {
-        setState(() {
-          _returnAuthorized = "Biometric isnt avalable";
-        });
+        BiometricAuthState.instance.returnAuthorized =
+            "Biometric isnt avalable";
       }
     } catch (e) {
-      setState(() {
-        _returnAuthorized = "Error $e";
-      });
+      BiometricAuthState.instance.returnAuthorized = "Error $e";
       rethrow;
     }
   }
@@ -128,8 +121,16 @@ class _HomePageState extends State<HomePage> {
       // Handle processedByteArray received from native side
     } on PlatformException catch (e) {
       // Handle platform exceptions
+      debugPrint("Error authentic biometric $e");
       rethrow;
     }
+  }
+
+  void _navigateNextScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PhotoScreen()),
+    );
   }
 
   void _getCurrentLocation() async {
@@ -166,30 +167,35 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _listenStatusLocation() async {
-    StreamSubscription<ServiceStatus> serviceStatusStream =
-        Geolocator.getServiceStatusStream().listen((ServiceStatus status) {
+    Geolocator.getServiceStatusStream().listen((ServiceStatus status) {
       debugPrint("Status location -> $status");
     });
   }
 
   void _getPresenceDb() async {
-    var dbHelper = DatabaseHelper();
-    await dbHelper.initDatabase();
+    do {
+      if (InternetState.instance.isConnectInternet) {
+        debugPrint("get presence DB");
+        await Future.delayed(const Duration(seconds: 10));
 
-    var presences = await dbHelper.getPresences();
-    if (presences.isEmpty) {
-      setState(() {
-        _isPendingPresence = false;
-      });
-    } else {
-      setState(() {
-        _isPendingPresence = true;
-      });
-      for (var x in presences) {
-        await _submitApi(x);
+        var dbHelper = DatabaseHelper();
+        await dbHelper.initDatabase();
+
+        var presences = await dbHelper.getPresences();
+        debugPrint("internet -> ${InternetState.instance.isConnectInternet}");
+        if (presences.isEmpty) {
+          PresenceState.instance.isPendingPresence = false;
+        } else {
+          PresenceState.instance.isPendingPresence = true;
+          for (var x in presences) {
+            if (InternetState.instance.isConnectInternet) await _submitApi(x);
+          }
+        }
+      } else {
+        debugPrint("do nothing");
+        await Future.delayed(const Duration(seconds: 10));
       }
-      return _getPresenceDb();
-    }
+    } while (true);
   }
 
   Future<void> _submitApi(ReqChecklog request) async {
@@ -203,18 +209,24 @@ class _HomePageState extends State<HomePage> {
     );
     final client = ApiClient(dio);
 
-    final post = await client.checklog(request);
-    var result = post.result ?? false;
-    if (result) {
-      //success
-      await _deletePresence(request);
+    try {
+      final post = await client.checklog(request);
+      var result = post.result ?? false;
+      if (result) {
+        //success
+        await _deletePresence(request);
+      }
+    } catch (e) {
+      debugPrint("Error submit data $e");
+      rethrow;
     }
   }
 
   Future<void> _deletePresence(ReqChecklog data) async {
     var dbHelper = DatabaseHelper();
     await dbHelper.initDatabase();
-    dbHelper.deletePresence(data.checklog_timestamp ?? "");
+    dbHelper.deletePresence(data.checklog_timestamp ??
+        ""); // TODO : don't forget modif with data ID
   }
 
   void _listenConnectivity() async {
@@ -222,11 +234,12 @@ class _HomePageState extends State<HomePage> {
         .onConnectivityChanged
         .listen((List<ConnectivityResult> result) async {
       var internetChecker = InternetChecker();
-      if (result.contains(ConnectivityResult.mobile)) {
-        await internetChecker.checkInternet();
-      } else if (result.contains(ConnectivityResult.wifi)) {
-        await internetChecker.checkInternet();
+      if (result.contains(ConnectivityResult.mobile) ||
+          result.contains(ConnectivityResult.wifi)) {
+        var result = await internetChecker.checkInternet();
+        if (result) InternetState.instance.isConnectInternet = true;
       } else if (result.contains(ConnectivityResult.none)) {
+        InternetState.instance.isConnectInternet = false;
         showSnackbar(context, "No internet connection", Colors.red);
       }
     });
@@ -243,42 +256,56 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Simple Biometric")),
-      body: Center(
-          child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          ElevatedButton(
-              onPressed: _registerFingerprint,
-              child: const Text("Authorization")),
-          const SizedBox(
-            height: 20,
-          ),
-          Text(_returnAuthorized),
-          const SizedBox(
-            height: 40.0,
-          ),
-          Container(
-              padding: const EdgeInsets.all(16.0),
-              child: Visibility(
-                visible: _isPendingPresence,
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text("Upload data ke server"),
-                    SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.black)),
-                    )
-                  ],
-                ),
-              ))
-        ],
-      )),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (BuildContext context) {
+          return PresenceState.instance;
+        }),
+        ChangeNotifierProvider(create: (BuildContext context) {
+          return BiometricAuthState.instance;
+        })
+      ],
+      child: Scaffold(
+        appBar: AppBar(title: const Text("Simple Biometric")),
+        body: Center(
+            child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+                onPressed: _registerFingerprint,
+                child: const Text("Authorization")),
+            const SizedBox(
+              height: 20,
+            ),
+            Consumer<BiometricAuthState>(
+                builder: (context, biometricAuthState, _) =>
+                    Text(biometricAuthState.returnAuthorized)),
+            const SizedBox(
+              height: 40.0,
+            ),
+            Consumer<PresenceState>(
+              builder: (context, presenceState, _) => Container(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Visibility(
+                    visible: presenceState.isPendingPresence,
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Upload data ke server"),
+                        SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.black)),
+                        )
+                      ],
+                    ),
+                  )),
+            )
+          ],
+        )),
+      ),
     );
   }
 }

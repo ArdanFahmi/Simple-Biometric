@@ -19,7 +19,7 @@ class InternetChecker {
         //return false
       }
     } on PlatformException catch (e) {
-      debugPrint("Couldn\'t check connectivity status : $e");
+      debugPrint("Couldn't check connectivity status : $e");
       rethrow;
     } catch (e) {
       rethrow;
