@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:app_settings/app_settings.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -8,7 +11,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simple_biometric/model/req_checklog.dart';
 import 'package:simple_biometric/photo_screen.dart';
 import 'package:simple_biometric/service/database/database_helper.dart';
+import 'package:simple_biometric/service/network/internet_checker.dart';
 import 'package:simple_biometric/service/retrofit/api_client.dart';
+import 'package:simple_biometric/utils/common.dart';
 
 void main() {
   runApp(const MainApp());
@@ -123,28 +128,28 @@ class _HomePageState extends State<HomePage> {
       // Handle processedByteArray received from native side
     } on PlatformException catch (e) {
       // Handle platform exceptions
-      throw (e);
+      rethrow;
     }
   }
 
   void _getCurrentLocation() async {
-    bool _serviceEnabled;
-    LocationPermission _permission;
+    bool serviceEnabled;
+    LocationPermission permission;
 
-    _serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!_serviceEnabled) {
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
       throw ("GPS is unable");
     }
 
-    _permission = await Geolocator.checkPermission();
-    if (_permission == LocationPermission.denied) {
-      _permission = await Geolocator.requestPermission();
-      if (_permission == LocationPermission.denied) {
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
         throw ("Permission is Denied");
       }
     }
 
-    if (_permission == LocationPermission.deniedForever) {
+    if (permission == LocationPermission.deniedForever) {
       throw ("Permission denied forever");
     }
 
@@ -158,6 +163,13 @@ class _HomePageState extends State<HomePage> {
     await prefs.setDouble('pref_long', long);
 
     debugPrint("lat -> $lat | long -> $long");
+  }
+
+  void _listenStatusLocation() async {
+    StreamSubscription<ServiceStatus> serviceStatusStream =
+        Geolocator.getServiceStatusStream().listen((ServiceStatus status) {
+      debugPrint("Status location -> $status");
+    });
   }
 
   void _getPresenceDb() async {
@@ -205,10 +217,27 @@ class _HomePageState extends State<HomePage> {
     dbHelper.deletePresence(data.checklog_timestamp ?? "");
   }
 
+  void _listenConnectivity() async {
+    Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> result) async {
+      var internetChecker = InternetChecker();
+      if (result.contains(ConnectivityResult.mobile)) {
+        await internetChecker.checkInternet();
+      } else if (result.contains(ConnectivityResult.wifi)) {
+        await internetChecker.checkInternet();
+      } else if (result.contains(ConnectivityResult.none)) {
+        showSnackbar(context, "No internet connection", Colors.red);
+      }
+    });
+  }
+
   @override
   void initState() {
+    _listenStatusLocation();
     _getCurrentLocation();
     _getPresenceDb();
+    _listenConnectivity();
     super.initState();
   }
 
