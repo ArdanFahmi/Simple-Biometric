@@ -15,4 +15,9 @@ class PhotoState with ChangeNotifier {
     _pickedImage = value;
     notifyListeners();
   }
+
+  // ignore: must_call_super, annotate_overrides
+  void dispose() {
+    _pickedImage = null;
+  }
 }

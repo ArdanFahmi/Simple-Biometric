@@ -214,6 +214,8 @@ class _HomePageState extends State<HomePage> {
       var result = post.result ?? false;
       if (result) {
         //success
+        PresenceState.instance.isFailedSubmitApi = false;
+        PresenceState.instance.retrySubmitApi = 0;
         await _deletePresence(request);
       } else {
         debugPrint("Result submit api : ${post.message}");
@@ -227,7 +229,8 @@ class _HomePageState extends State<HomePage> {
       }
     } catch (e) {
       debugPrint("Error submit data $e");
-      if (e.toString().contains("false")) { //handle custom exception
+      if (e.toString().contains("false")) {
+        //handle custom exception
         rethrow;
       } else {
         PresenceState.instance.isFailedSubmitApi = true;

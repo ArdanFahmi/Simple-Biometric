@@ -47,6 +47,11 @@ class _PhotoScreenState extends State<PhotoScreen> {
     _takePic();
     super.initState();
   }
+  @override
+  void dispose() {
+    PhotoState.instance.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
