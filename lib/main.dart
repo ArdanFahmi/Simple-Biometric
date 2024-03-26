@@ -215,10 +215,29 @@ class _HomePageState extends State<HomePage> {
       if (result) {
         //success
         await _deletePresence(request);
+      } else {
+        debugPrint("Result submit api : ${post.message}");
+        PresenceState.instance.isFailedSubmitApi = true;
+        PresenceState.instance.retrySubmitApi += 1;
+        if (PresenceState.instance.retrySubmitApi >= 3) {
+          throw ("false"); //custom exception to break the loop
+        } else {
+          return _getPresenceDb();
+        }
       }
     } catch (e) {
       debugPrint("Error submit data $e");
-      rethrow;
+      if (e.toString().contains("false")) { //handle custom exception
+        rethrow;
+      } else {
+        PresenceState.instance.isFailedSubmitApi = true;
+        PresenceState.instance.retrySubmitApi += 1;
+        if (PresenceState.instance.retrySubmitApi >= 3) {
+          rethrow; //this will end the loop _getPresenceDb()
+        } else {
+          return _getPresenceDb();
+        }
+      }
     }
   }
 
@@ -288,19 +307,41 @@ class _HomePageState extends State<HomePage> {
                   padding: const EdgeInsets.all(16.0),
                   child: Visibility(
                     visible: presenceState.isPendingPresence,
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("Upload data ke server"),
-                        SizedBox(
+                        const Text("Upload data ke server"),
+                        const SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
                               valueColor:
                                   AlwaysStoppedAnimation<Color>(Colors.black)),
-                        )
+                        ),
+                        Visibility(
+                            visible: presenceState.isFailedSubmitApi,
+                            child: Text(
+                              "${presenceState.retrySubmitApi} / 3",
+                              style: const TextStyle(color: Colors.red),
+                            )),
                       ],
                     ),
+                  )),
+            ),
+            Consumer<PresenceState>(
+              builder: (context, presenceState, _) => Visibility(
+                  visible: presenceState.retrySubmitApi == 3,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10.0),
+                      ElevatedButton(
+                          onPressed: () {
+                            presenceState.retrySubmitApi = 0;
+                            presenceState.isFailedSubmitApi = false;
+                            _getPresenceDb();
+                          },
+                          child: const Text("Retry sync data"))
+                    ],
                   )),
             )
           ],
