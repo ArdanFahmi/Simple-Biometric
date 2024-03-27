@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_settings/app_settings.dart';
+import 'package:background_fetch/background_fetch.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simple_biometric/model/req_checklog.dart';
 import 'package:simple_biometric/photo_screen.dart';
+import 'package:simple_biometric/service/background/background_task.dart';
+import 'package:simple_biometric/service/background/queue_presence.dart';
 import 'package:simple_biometric/service/database/database_helper.dart';
 import 'package:simple_biometric/service/network/internet_checker.dart';
 import 'package:simple_biometric/service/retrofit/api_client.dart';
@@ -19,8 +22,24 @@ import 'package:simple_biometric/state/internet_state.dart';
 import 'package:simple_biometric/state/presence_state.dart';
 import 'package:simple_biometric/utils/common.dart';
 
+@pragma('vm:entry-point')
+void backgroundFetchHeadlessTask(HeadlessTask task) async {
+  String taskId = task.taskId;
+  bool isTimeout = task.timeout;
+  if (isTimeout) {
+    // This task has exceeded its allowed running-time.  You must stop what you're doing and immediately .finish(taskId)
+    debugPrint("[BackgroundFetch] Headless task timed-out: $taskId");
+    BackgroundFetch.finish(taskId);
+    return;
+  }
+  debugPrint("[BackgroundFetch] Headless event received: $taskId");
+  QueuePresence().getPresenceDb();
+  BackgroundFetch.finish(taskId);
+}
+
 void main() {
   runApp(const MainApp());
+  BackgroundFetch.registerHeadlessTask(backgroundFetchHeadlessTask);
 }
 
 class MainApp extends StatelessWidget {
@@ -182,9 +201,9 @@ class _HomePageState extends State<HomePage> {
         await dbHelper.initDatabase();
 
         var presences = await dbHelper.getPresences();
-        debugPrint("internet -> ${InternetState.instance.isConnectInternet}");
         if (presences.isEmpty) {
           PresenceState.instance.isPendingPresence = false;
+          PresenceState.instance.retrySubmitApi = 0;
         } else {
           PresenceState.instance.isPendingPresence = true;
           for (var x in presences) {
@@ -192,7 +211,7 @@ class _HomePageState extends State<HomePage> {
           }
         }
       } else {
-        debugPrint("do nothing");
+        debugPrint("internet offline, do nothing");
         await Future.delayed(const Duration(seconds: 10));
       }
     } while (true);
@@ -247,7 +266,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _deletePresence(ReqChecklog data) async {
     var dbHelper = DatabaseHelper();
     await dbHelper.initDatabase();
-    dbHelper.deletePresence(data.checklog_timestamp ??
+    await dbHelper.deletePresence(data.checklog_timestamp ??
         ""); // TODO : don't forget modif with data ID
   }
 
@@ -267,12 +286,18 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _startBackgroundTask() async {
+    var task = BackgroundTask();
+    await task.startBackgroundTaskGetPresenceDb();
+  }
+
   @override
   void initState() {
     _listenStatusLocation();
     _getCurrentLocation();
     _getPresenceDb();
     _listenConnectivity();
+    _startBackgroundTask(); 
     super.initState();
   }
 

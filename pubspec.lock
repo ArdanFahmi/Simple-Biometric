@@ -41,6 +41,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.11.0"
+  background_fetch:
+    dependency: "direct main"
+    description:
+      name: background_fetch
+      sha256: "67d28aa747d344e8ab4cb56f0fba4f957c1d41504fc6be1ef275864000b30eb6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.3.1"
   boolean_selector:
     dependency: transitive
     description:

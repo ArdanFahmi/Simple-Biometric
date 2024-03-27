@@ -55,5 +55,13 @@
 	<string>This app needs access to Microphone</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to Photo Library</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>task-identifier</string>
+  </array>
 </dict>
 </plist>
