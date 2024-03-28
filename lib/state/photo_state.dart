@@ -3,7 +3,10 @@ import 'package:image_picker/image_picker.dart';
 
 class PhotoState with ChangeNotifier {
   XFile? _pickedImage;
+  bool _isFormRegister = false;
+
   XFile? get pickedImage => _pickedImage;
+  bool get isFormRegister => _isFormRegister;
 
   PhotoState._();
 
@@ -13,6 +16,11 @@ class PhotoState with ChangeNotifier {
 
   set pickedImage(XFile? value) {
     _pickedImage = value;
+    notifyListeners();
+  }
+
+  set isFormRegister(bool value) {
+    _isFormRegister = value;
     notifyListeners();
   }
 

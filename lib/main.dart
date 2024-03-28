@@ -19,6 +19,7 @@ import 'package:simple_biometric/service/network/internet_checker.dart';
 import 'package:simple_biometric/service/retrofit/api_client.dart';
 import 'package:simple_biometric/state/biometric_auth_state.dart';
 import 'package:simple_biometric/state/internet_state.dart';
+import 'package:simple_biometric/state/photo_state.dart';
 import 'package:simple_biometric/state/presence_state.dart';
 import 'package:simple_biometric/utils/common.dart';
 
@@ -86,6 +87,7 @@ class _HomePageState extends State<HomePage> {
                   useErrorDialogs: true,
                   stickyAuth: false));
           if (didAuthenticate) {
+            PhotoState.instance.isFormRegister = false;
             _navigateNextScreen();
           } else {
             BiometricAuthState.instance.returnAuthorized = "Auth Failed";
@@ -297,7 +299,7 @@ class _HomePageState extends State<HomePage> {
     _getCurrentLocation();
     _getPresenceDb();
     _listenConnectivity();
-    _startBackgroundTask(); 
+    _startBackgroundTask();
     super.initState();
   }
 
@@ -371,7 +373,16 @@ class _HomePageState extends State<HomePage> {
                           child: const Text("Retry sync data"))
                     ],
                   )),
-            )
+            ),
+            const SizedBox(
+              height: 20,
+            ),
+            ElevatedButton(
+                onPressed: () {
+                  PhotoState.instance.isFormRegister = true;
+                  _navigateNextScreen();
+                },
+                child: const Text("Register face"))
           ],
         )),
       ),
