@@ -24,7 +24,8 @@ class _PhotoScreenState extends State<PhotoScreen> {
     try {
       final pickedFile = await _picker.pickImage(
           source: ImageSource.camera,
-          preferredCameraDevice: CameraDevice.front);
+          preferredCameraDevice: CameraDevice.front,
+          imageQuality: 50);
       if (pickedFile != null) {
         PhotoState.instance.pickedImage = pickedFile;
       } else {}

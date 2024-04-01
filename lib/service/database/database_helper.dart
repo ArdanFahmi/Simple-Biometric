@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:simple_biometric/model/presence.dart';
 import 'package:simple_biometric/model/req_checklog.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -10,12 +11,12 @@ class DatabaseHelper {
     final db = await openDatabase(path, version: 1,
         onCreate: (Database db, int version) async {
       await db.execute(
-          "CREATE TABLE Presence(id INTEGER PRIMARY KEY AUTOINCREMENT, checklog_id2 TEXT NOT NULL, checklog_timestamp TEXT NOT NULL, checklog_event TEXT NOT NULL, checklog_latitude TEXT NOT NULL, checklog_longitude TEXT NOT NULL, image TEXT NOT NULL, employee_id TEXT NOT NULL, address TEXT NOT NULL, machine_id TEXT NOT NULL, company_id TEXT NOT NULL)");
+          "CREATE TABLE Presence(id INTEGER PRIMARY KEY AUTOINCREMENT, checklog_id2 TEXT NOT NULL, checklog_timestamp TEXT NOT NULL, checklog_event TEXT NOT NULL, checklog_latitude TEXT NOT NULL, checklog_longitude TEXT NOT NULL, image TEXT NOT NULL, employee_id TEXT NOT NULL, address TEXT NOT NULL, machine_id TEXT NOT NULL, company_id TEXT NOT NULL, is_uploaded INTEGER NOT NULL)");
     });
     return db;
   }
 
-  Future<int> insertPresence(ReqChecklog data) async {
+  Future<int> insertPresence(Presence data) async {
     final Database db = await initDatabase();
     final id = await db.insert('Presence', data.toJson(),
         conflictAlgorithm: ConflictAlgorithm.replace);
@@ -42,6 +43,44 @@ class DatabaseHelper {
         company_id: map['company_id'] as String?,
       );
     }).toList();
+  }
+
+  Future<List<Presence>> getPendingPresence() async {
+    final Database db = await initDatabase();
+    const query =
+        "SELECT * FROM Presence WHERE is_uploaded = 0 ORDER BY checklog_timestamp DESC";
+    final List<Map<String, Object?>> queryResult = await db.rawQuery(query);
+    debugPrint("List -> $queryResult");
+    return queryResult.map((Map<String, Object?> map) {
+      return Presence(
+          checklog_id2: map['checklog_id2'] as String?,
+          checklog_timestamp: map['checklog_timestamp'] as String?,
+          checklog_event: map['checklog_event'] as String?,
+          checklog_latitude: map['checklog_latitude'] as String?,
+          checklog_longitude: map['checklog_longitude'] as String?,
+          image: map['image'] as String?,
+          employee_id: map['employee_id'] as String?,
+          address: map['address'] as String?,
+          machine_id: map['machine_id'] as String?,
+          company_id: map['company_id'] as String?,
+          is_uploaded: map['is_uploaded'] as int?);
+    }).toList();
+  }
+
+  Future<int> updateUploaded(Presence data) async {
+    final Database db = await initDatabase();
+    var result = 0;
+    try {
+      Map<String, dynamic> updateData = {'is_uploaded': 1};
+      result = await db.update("Presence", updateData,
+          where:
+              'checklog_timestamp = ?', // TODO : don't forget modif with data ID
+          whereArgs: [data.checklog_timestamp]);
+      debugPrint("Result update -> $result");
+    } catch (e) {
+      debugPrint("Error update data : $e");
+    }
+    return result;
   }
 
   Future<int> deletePresence(String id) async {

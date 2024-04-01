@@ -10,6 +10,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simple_biometric/model/presence.dart';
 import 'package:simple_biometric/model/req_checklog.dart';
 import 'package:simple_biometric/photo_screen.dart';
 import 'package:simple_biometric/service/background/background_task.dart';
@@ -198,7 +199,7 @@ class _HomePageState extends State<HomePage> {
         var dbHelper = DatabaseHelper();
         await dbHelper.initDatabase();
 
-        var presences = await dbHelper.getPresences();
+        var presences = await dbHelper.getPendingPresence();
         if (presences.isEmpty) {
           PresenceState.instance.isPendingPresence = false;
           PresenceState.instance.retrySubmitApi = 0;
@@ -215,7 +216,7 @@ class _HomePageState extends State<HomePage> {
     } while (true);
   }
 
-  Future<void> _submitApi(ReqChecklog request) async {
+  Future<void> _submitApi(Presence request) async {
     final dio = Dio();
     dio.interceptors.add(
       LogInterceptor(
@@ -227,13 +228,26 @@ class _HomePageState extends State<HomePage> {
     final client = ApiClient(dio);
 
     try {
-      final post = await client.checklog(request);
+      var newRequest = ReqChecklog(
+        checklog_id2: request.checklog_id2,
+        checklog_timestamp: request.checklog_timestamp,
+        checklog_event: request.checklog_event,
+        checklog_latitude: request.checklog_latitude,
+        checklog_longitude: request.checklog_longitude,
+        image: request.image,
+        employee_id: request.employee_id,
+        address: request.address,
+        machine_id: request.machine_id,
+        company_id: request.company_id,
+      );
+
+      final post = await client.checklog(newRequest);
       var result = post.result ?? false;
       if (result) {
         //success
         PresenceState.instance.isFailedSubmitApi = false;
         PresenceState.instance.retrySubmitApi = 0;
-        await _deletePresence(request);
+        await _updateUploaded(request);
       } else {
         debugPrint("Result submit api : ${post.message}");
         PresenceState.instance.isFailedSubmitApi = true;
@@ -261,11 +275,10 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _deletePresence(ReqChecklog data) async {
+  Future<void> _updateUploaded(Presence data) async {
     var dbHelper = DatabaseHelper();
     await dbHelper.initDatabase();
-    await dbHelper.deletePresence(data.checklog_timestamp ??
-        ""); // TODO : don't forget modif with data ID
+    await dbHelper.updateUploaded(data);
   }
 
   void _listenConnectivity() async {

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:simple_biometric/model/presence.dart';
 import 'package:simple_biometric/model/req_checklog.dart';
 import 'package:simple_biometric/service/database/database_helper.dart';
 import 'package:simple_biometric/service/network/internet_checker.dart';
@@ -14,7 +15,7 @@ class QueuePresence {
       var dbHelper = DatabaseHelper();
       await dbHelper.initDatabase();
 
-      var presences = await dbHelper.getPresences();
+      var presences = await dbHelper.getPendingPresence();
       if (presences.isEmpty) {
         debugPrint("[Background] Presences is empty");
       } else {
@@ -27,7 +28,7 @@ class QueuePresence {
     }
   }
 
-  Future<void> submitApi(ReqChecklog request) async {
+  Future<void> submitApi(Presence request) async {
     final dio = Dio();
     dio.interceptors.add(
       LogInterceptor(
@@ -39,20 +40,32 @@ class QueuePresence {
     final client = ApiClient(dio);
 
     try {
-      final post = await client.checklog(request);
+      var newRequest = ReqChecklog(
+        checklog_id2: request.checklog_id2,
+        checklog_timestamp: request.checklog_timestamp,
+        checklog_event: request.checklog_event,
+        checklog_latitude: request.checklog_latitude,
+        checklog_longitude: request.checklog_longitude,
+        image: request.image,
+        employee_id: request.employee_id,
+        address: request.address,
+        machine_id: request.machine_id,
+        company_id: request.company_id,
+      );
+
+      final post = await client.checklog(newRequest);
       var result = post.result ?? false;
       if (result) {
-        await deletePresence(request);
+        await updateUploaded(request);
       } else {}
     } catch (e) {
       debugPrint("Error submit data $e");
     }
   }
 
-  Future<void> deletePresence(ReqChecklog data) async {
+  Future<void> updateUploaded(Presence data) async {
     var dbHelper = DatabaseHelper();
     await dbHelper.initDatabase();
-    await dbHelper.deletePresence(data.checklog_timestamp ??
-        ""); // TODO : don't forget modif with data ID
+    await dbHelper.updateUploaded(data);
   }
 }

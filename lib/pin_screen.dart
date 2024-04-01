@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_otp_text_field/flutter_otp_text_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:simple_biometric/model/req_checklog.dart';
+import 'package:simple_biometric/model/presence.dart';
 import 'package:simple_biometric/service/database/database_helper.dart';
 import 'package:simple_biometric/utils/common.dart';
 
@@ -23,11 +23,10 @@ class _PinScreenState extends State<PinScreen> {
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         var lat = prefs.getDouble("pref_lat");
         var long = prefs.getDouble("pref_long");
-
         debugPrint("lat -> $lat | long -> $long");
         var dateNow = getCurrentDateFormatted();
 
-        var request = ReqChecklog(
+        var request = Presence(
             checklog_id2: "002",
             checklog_timestamp: dateNow,
             checklog_event: "CheckIn",
@@ -37,7 +36,8 @@ class _PinScreenState extends State<PinScreen> {
             employee_id: "14487",
             address: "Jalan Ambengan no 85",
             machine_id: "",
-            company_id: "LV0036");
+            company_id: "LV0036",
+            is_uploaded: 0);
 
         var insertCount = await dbHelper.insertPresence(request);
         if (insertCount > 0) {
@@ -46,6 +46,34 @@ class _PinScreenState extends State<PinScreen> {
         } else {
           showSnackbar(context, "Data gagal tersimpan", Colors.red);
         }
+        
+        /*
+        for (var i = 0; i < 100; i++) {
+          await Future.delayed(const Duration(seconds: 1));
+
+          var dateNow = getCurrentDateFormatted();
+
+          var request = ReqChecklog(
+              checklog_id2: "002",
+              checklog_timestamp: dateNow,
+              checklog_event: "CheckIn",
+              checklog_latitude: lat.toString(),
+              checklog_longitude: long.toString(),
+              image: "",
+              employee_id: "14487",
+              address: "Jalan Ambengan no 85",
+              machine_id: "",
+              company_id: "LV0036");
+
+          var insertCount = await dbHelper.insertPresence(request);
+          // if (insertCount > 0) {
+          //   showSnackbar(context, "Data berhasil tersimpan", Colors.green);
+          //   _navigateHome();
+          // } else {
+          //   showSnackbar(context, "Data gagal tersimpan", Colors.red);
+          // }
+        }
+        */
       } catch (e) {
         showSnackbar(context, "Error menyimpan data: $e", Colors.red);
         rethrow;
