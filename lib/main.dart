@@ -180,11 +180,7 @@ class _HomePageState extends State<HomePage> {
     var lat = abc.latitude;
     var long = abc.longitude;
 
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('pref_lat', lat);
-    await prefs.setDouble('pref_long', long);
-
-    debugPrint("lat -> $lat | long -> $long");
+    _calculateDistance(lat, long);
   }
 
   void _listenStatusLocation() async {
@@ -293,10 +289,29 @@ class _HomePageState extends State<HomePage> {
     await task.startBackgroundTaskGetPresenceDb();
   }
 
+  void _calculateDistance(double curLat, double curLong) async {
+    //-7.255863243674212, 112.7522147068024 -> "interactive building"
+    var radius = calculateDistance(
+        -7.255863243674212, 112.7522147068024, curLat, curLong);
+    debugPrint("Radius $radius");
+
+    bool isValid = isInRadius(radius);
+    if (isValid) {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('pref_lat', curLat);
+      await prefs.setDouble('pref_long', curLong);
+
+      debugPrint("lat -> $curLat | long -> $curLong");
+      _registerFingerprint();
+    } else {
+      showSnackbar(
+          context, "Lokasi tidak boleh lebih dari 50 meter", Colors.red);
+    }
+  }
+
   @override
   void initState() {
     _listenStatusLocation();
-    _getCurrentLocation();
     _getPresenceDb();
     _listenConnectivity();
     _startBackgroundTask();
@@ -321,7 +336,7 @@ class _HomePageState extends State<HomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ElevatedButton(
-                onPressed: _registerFingerprint,
+                onPressed: _getCurrentLocation,
                 child: const Text("Authorization")),
             const SizedBox(
               height: 20,

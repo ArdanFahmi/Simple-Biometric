@@ -39,11 +39,11 @@ class _PhotoScreenState extends State<PhotoScreen> {
       if (PhotoState.instance.isFormRegister) {
         _registerFaceApi();
       } else {
-        _validateFaceApi();
-        // Navigator.push(
-        //   context,
-        //   MaterialPageRoute(builder: (context) => const PinScreen()),
-        // );
+        // _validateFaceApi();
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const PinScreen()),
+        );
       }
     } else {
       showSnackbar(context, "Foto kosong", Colors.amber);
