@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simple_biometric/pin_screen.dart';
 import 'package:simple_biometric/state/photo_state.dart';
 import 'package:simple_biometric/utils/common.dart';
@@ -87,6 +88,9 @@ class _PhotoScreenState extends State<PhotoScreen> {
         Map<String, dynamic> responseBody = response.data;
         var status = responseBody['status'];
         if (status == "success") {
+          final SharedPreferences prefs = await SharedPreferences.getInstance();
+          await prefs.setString("pref_noakun", timeString);
+
           showSnackbar(context, "Data berhasil tersimpan", Colors.green);
           Navigator.pop(context);
         } else {
@@ -114,12 +118,15 @@ class _PhotoScreenState extends State<PhotoScreen> {
     );
 
     try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      var noakun = prefs.getString("pref_noakun");
+
       var formData = FormData.fromMap({
         'token': token,
-        'noakun': "01", // TODO: get this from host
+        'noakun': noakun, // TODO: get this from host
         'photo': await MultipartFile.fromFile(
             PhotoState.instance.pickedImage!.path,
-            filename: "01.jpg"), // TODO: replace with noakun
+            filename: "$noakun.jpg"),
       });
       final response = await dio.post(
         url,
