@@ -29,7 +29,10 @@ class QueuePresence {
   }
 
   Future<void> submitApi(Presence request) async {
-    final dio = Dio();
+    final dio = Dio(BaseOptions(
+        sendTimeout: const Duration(minutes: 1),
+        connectTimeout: const Duration(minutes: 1),
+        receiveTimeout: const Duration(minutes: 1)));
     dio.interceptors.add(
       LogInterceptor(
         requestBody: true,

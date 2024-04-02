@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:async';
 
 import 'package:app_settings/app_settings.dart';
@@ -68,6 +70,7 @@ class _HomePageState extends State<HomePage> {
   static const _platform = MethodChannel('biometric_channel');
 
   Future<void> _registerFingerprint() async {
+    PhotoState.instance.isFormRegister = false;
     try {
       bool canCheckBiometrics = await _localAuthentication.canCheckBiometrics;
       if (canCheckBiometrics) {
@@ -88,18 +91,17 @@ class _HomePageState extends State<HomePage> {
                   useErrorDialogs: true,
                   stickyAuth: false));
           if (didAuthenticate) {
-            PhotoState.instance.isFormRegister = false;
             _navigateNextScreen();
           } else {
             BiometricAuthState.instance.returnAuthorized = "Auth Failed";
           }
         } else {
-          BiometricAuthState.instance.returnAuthorized =
-              "Device not support fingerprint";
+          // Device not contains fingerprint || face
+          _navigateNextScreen();
         }
       } else {
-        BiometricAuthState.instance.returnAuthorized =
-            "Biometric isnt avalable";
+        // Device not support fingerprint
+        _navigateNextScreen();
       }
     } catch (e) {
       BiometricAuthState.instance.returnAuthorized = "Error $e";
@@ -156,23 +158,31 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _getCurrentLocation() async {
+    PresenceState.instance.isLoadingBtn = true;
     bool serviceEnabled;
     LocationPermission permission;
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
+      PresenceState.instance.isLoadingBtn = false;
+      showSnackbar(context, "GPS is unable", Colors.red);
       throw ("GPS is unable");
     }
 
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
+      PresenceState.instance.isLoadingBtn = false;
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
+        PresenceState.instance.isLoadingBtn = false;
+        showSnackbar(context, "Permission is denied", Colors.red);
         throw ("Permission is Denied");
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
+      PresenceState.instance.isLoadingBtn = false;
+      showSnackbar(context, "Permission denied forever", Colors.red);
       throw ("Permission denied forever");
     }
 
@@ -217,7 +227,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _submitApi(Presence request) async {
-    final dio = Dio();
+    final dio = Dio(BaseOptions(
+        sendTimeout: const Duration(minutes: 1),
+        connectTimeout: const Duration(minutes: 1),
+        receiveTimeout: const Duration(minutes: 1)));
     dio.interceptors.add(
       LogInterceptor(
         requestBody: true,
@@ -253,14 +266,14 @@ class _HomePageState extends State<HomePage> {
         PresenceState.instance.isFailedSubmitApi = true;
         PresenceState.instance.retrySubmitApi += 1;
         if (PresenceState.instance.retrySubmitApi >= 3) {
-          throw ("false"); //custom exception to break the loop
+          throw ("result_not_success"); //custom exception to break the loop
         } else {
           return _getPresenceDb();
         }
       }
     } catch (e) {
       debugPrint("Error submit data $e");
-      if (e.toString().contains("false")) {
+      if (e.toString().contains("result_not_success")) {
         //handle custom exception
         rethrow;
       } else {
@@ -315,8 +328,10 @@ class _HomePageState extends State<HomePage> {
       await prefs.setDouble('pref_long', curLong);
 
       debugPrint("lat -> $curLat | long -> $curLong");
+      PresenceState.instance.isLoadingBtn = false;
       _registerFingerprint();
     } else {
+      PresenceState.instance.isLoadingBtn = false;
       showSnackbar(
           context, "Lokasi tidak boleh lebih dari 50 meter", Colors.red);
     }
@@ -348,9 +363,20 @@ class _HomePageState extends State<HomePage> {
             child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton(
-                onPressed: _getCurrentLocation,
-                child: const Text("Authorization")),
+            Consumer<PresenceState>(
+                builder: (context, presenceState, _) => Column(
+                      children: [
+                        if (presenceState.isLoadingBtn) ...[
+                          const CircularProgressIndicator(
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.black))
+                        ] else ...[
+                          ElevatedButton(
+                              onPressed: _getCurrentLocation,
+                              child: const Text("Absen")),
+                        ]
+                      ],
+                    )),
             const SizedBox(
               height: 20,
             ),
