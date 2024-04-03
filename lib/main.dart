@@ -238,7 +238,9 @@ class _HomePageState extends State<HomePage> {
         logPrint: (o) => debugPrint(o.toString()),
       ),
     );
-    final client = ApiClient(dio);
+
+    final dioClient = DioClient();
+    final client = ApiClient(dioClient);
 
     try {
       var newRequest = ReqChecklog(

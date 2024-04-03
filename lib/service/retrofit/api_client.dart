@@ -6,9 +6,21 @@ import 'package:dio/dio.dart' hide Headers;
 
 part 'api_client.g.dart';
 
+class DioClient {
+  final Dio dio;
+
+  DioClient()
+      : dio = Dio(BaseOptions(
+            connectTimeout: const Duration(minutes: 1),
+            sendTimeout: const Duration(minutes: 1),
+            receiveTimeout: const Duration(minutes: 1))) {
+    dio.interceptors.add(LogInterceptor(requestBody: true, responseBody: true));
+  }
+}
+
 @RestApi(baseUrl: "https://inact.interactiveholic.net/bo/api/intrax")
 abstract class ApiClient {
-  factory ApiClient(Dio dio, {String baseUrl}) = _ApiClient;
+  factory ApiClient(DioClient dioClient) => _ApiClient(dioClient.dio);
 
   @POST(Apis.submitChecklog)
   @Headers(<String, dynamic>{
