@@ -5,11 +5,13 @@ class PresenceState with ChangeNotifier {
   bool _isFailedSubmitApi = false;
   bool _isLoadingBtn = false;
   int _retrySubmitApi = 0;
+  String _timeLoc = "";
 
   bool get isPendingPresence => _isPendingPresence;
   bool get isFailedSubmitApi => _isFailedSubmitApi;
   bool get isLoadingBtn => _isLoadingBtn;
   int get retrySubmitApi => _retrySubmitApi;
+  String get timeLoc => _timeLoc;
 
   // Private constructor
   PresenceState._();
@@ -39,4 +41,12 @@ class PresenceState with ChangeNotifier {
     _retrySubmitApi = value;
     notifyListeners();
   }
+
+  set timeLoc(String value) {
+    _timeLoc = value;
+    notifyListeners();
+  }
+
+  // ignore: must_call_super, annotate_overrides
+  void dispose() {}
 }

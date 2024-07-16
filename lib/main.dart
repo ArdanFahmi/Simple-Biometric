@@ -25,6 +25,9 @@ import 'package:simple_biometric/state/internet_state.dart';
 import 'package:simple_biometric/state/photo_state.dart';
 import 'package:simple_biometric/state/presence_state.dart';
 import 'package:simple_biometric/utils/common.dart';
+import 'package:timezone/timezone.dart' as tz;
+// import 'package:timezone/standalone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tzdata;
 
 @pragma('vm:entry-point')
 void backgroundFetchHeadlessTask(HeadlessTask task) async {
@@ -44,6 +47,16 @@ void backgroundFetchHeadlessTask(HeadlessTask task) async {
 void main() {
   runApp(const MainApp());
   BackgroundFetch.registerHeadlessTask(backgroundFetchHeadlessTask);
+
+  // tz.initializeTimeZones();
+  tzdata.initializeTimeZones();
+  var easternTimeZone = tz.getLocation('Asia/Jakarta');
+  // tz.TZDateTime.now(easternTimeZone);
+  print("abc ${tz.TZDateTime.now(easternTimeZone)}");
+  // var utcTime = DateTime.utc(2023, 4, 1, 12); // 12:00 PM UTC
+  // var easternTime = tz.TZDateTime.from(utcTime, easternTimeZone);
+
+  // print(easternTime);
 }
 
 class MainApp extends StatelessWidget {
@@ -62,6 +75,7 @@ class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
 
   @override
+  // ignore: library_private_types_in_public_api
   _HomePageState createState() => _HomePageState();
 }
 
@@ -188,8 +202,29 @@ class _HomePageState extends State<HomePage> {
 
     var abc = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high);
+    var time = abc.timestamp;
+    PresenceState.instance.timeLoc = time.toString();
     var lat = abc.latitude;
     var long = abc.longitude;
+
+    // var now = DateTime.now();
+    // var timeName = now.timeZoneName;
+    // print("time name $timeName");
+
+    // await tz.initializeTimeZone();
+    // tz.initializeDatabase(rawData);
+    // var detroit = tz.getLocation('America/Detroit');
+    // tz.setLocalLocation(detroit);
+    // print("halooo $detroit");
+
+    // await tz.initializeTimeZone();
+    // var easternTimeZone = tz.getLocation('America/New_York');
+    // var utcTime = DateTime.utc(2023, 4, 1, 12); // 12:00 PM UTC
+    // var easternTime = tz.TZDateTime.from(utcTime, easternTimeZone);
+
+    // print("ini apa $easternTime");
+
+    // final detroit = tz.getLocation('America/Detroit');
 
     _calculateDistance(lat, long);
   }
@@ -342,9 +377,9 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     _listenStatusLocation();
-    _getPresenceDb();
+    // _getPresenceDb();
     _listenConnectivity();
-    _startBackgroundTask();
+    // _startBackgroundTask();
     super.initState();
   }
 
@@ -388,6 +423,9 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(
               height: 40.0,
             ),
+            Consumer<PresenceState>(
+                builder: (context, presenceState, _) =>
+                    Text(presenceState.timeLoc)),
             Consumer<PresenceState>(
               builder: (context, presenceState, _) => Container(
                   padding: const EdgeInsets.all(16.0),
