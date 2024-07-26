@@ -12,6 +12,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simple_biometric/camera_screen.dart';
 import 'package:simple_biometric/model/presence.dart';
 import 'package:simple_biometric/model/req_checklog.dart';
 import 'package:simple_biometric/photo_screen.dart';
@@ -43,7 +44,7 @@ void backgroundFetchHeadlessTask(HeadlessTask task) async {
 
 void main() {
   runApp(const MainApp());
-  BackgroundFetch.registerHeadlessTask(backgroundFetchHeadlessTask);
+  // BackgroundFetch.registerHeadlessTask(backgroundFetchHeadlessTask);
 }
 
 class MainApp extends StatelessWidget {
@@ -342,9 +343,9 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     _listenStatusLocation();
-    _getPresenceDb();
+    // _getPresenceDb();
     _listenConnectivity();
-    _startBackgroundTask();
+    // _startBackgroundTask();
     super.initState();
   }
 
@@ -438,7 +439,19 @@ class _HomePageState extends State<HomePage> {
                   PhotoState.instance.isFormRegister = true;
                   _navigateNextScreen();
                 },
-                child: const Text("Register face"))
+                child: const Text("Register face")),
+            const SizedBox(
+              height: 20,
+            ),
+            ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const CameraScreen()),
+                  );
+                },
+                child: const Text("Face Recognition")),
           ],
         )),
       ),
