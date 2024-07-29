@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +28,7 @@ class _CameraScreenState extends State<CameraScreen> {
       enableLandmarks: true,
     ),
   );
+  CustomPaint? _customPaint;
 
   @override
   void initState() {
@@ -49,20 +50,18 @@ class _CameraScreenState extends State<CameraScreen> {
 
   _startLiveFeed() async {
     controller = CameraController(
-        _cameras[0],
-        // Set to ResolutionPreset.high. Do NOT set it to ResolutionPreset.max because for some phones does NOT work.
-        ResolutionPreset.high,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.nv21
-        //  Platform.isAndroid
-        //     ? ImageFormatGroup.nv21
-        //     : ImageFormatGroup.bgra8888,
-        );
+      _cameras[0],
+      // Set to ResolutionPreset.high. Do NOT set it to ResolutionPreset.max because for some phones does NOT work.
+      ResolutionPreset.high,
+      enableAudio: false,
+      imageFormatGroup: Platform.isAndroid
+          ? ImageFormatGroup.nv21
+          : ImageFormatGroup.bgra8888,
+    );
     controller.initialize().then((_) {
       controller.startImageStream(_processCameraImage).then((value) {});
-      // setState(() {}); //refresh state
+      setState(() {}); //refresh state
     });
-    setState(() {}); //refresh state
   }
 
   _stopLiveFeed() async {
@@ -74,7 +73,6 @@ class _CameraScreenState extends State<CameraScreen> {
   void _processCameraImage(CameraImage image) {
     final inputImage = _inputImageFromCameraImage(image);
     if (inputImage != null) {
-      print("masuk sini");
       _processImage(inputImage);
     }
   }
@@ -105,7 +103,6 @@ class _CameraScreenState extends State<CameraScreen> {
     if (rotation == null) return null;
     // print('final rotation: $rotation');
     // get image format
-    print("haloo ${image.format.raw}");
     final format = InputImageFormatValue.fromRawValue(image.format.raw);
     // validate format depending on platform
     // only supported formats:
@@ -133,7 +130,16 @@ class _CameraScreenState extends State<CameraScreen> {
 
   Future<void> _processImage(InputImage inputImage) async {
     final faces = await _faceDetector.processImage(inputImage);
-    print("Faces -> $faces");
+    final painter = FaceDetectorPainter(
+      faces,
+      inputImage.metadata!.size,
+      inputImage.metadata!.rotation,
+      CameraLensDirection.front,
+    );
+    _customPaint = CustomPaint(painter: painter);
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -142,7 +148,184 @@ class _CameraScreenState extends State<CameraScreen> {
       return Container();
     }
     return MaterialApp(
-      home: CameraPreview(controller),
+      home: CameraPreview(
+        controller,
+        child: _customPaint,
+      ),
     );
+  }
+}
+
+class FaceDetectorPainter extends CustomPainter {
+  FaceDetectorPainter(
+    this.faces,
+    this.imageSize,
+    this.rotation,
+    this.cameraLensDirection,
+  );
+
+  final List<Face> faces;
+  final Size imageSize;
+  final InputImageRotation rotation;
+  final CameraLensDirection cameraLensDirection;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint1 = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = Colors.red;
+    final Paint paint2 = Paint()
+      ..style = PaintingStyle.fill
+      ..strokeWidth = 1.0
+      ..color = Colors.green;
+
+    for (final Face face in faces) {
+      final left = translateX(
+        face.boundingBox.left,
+        size,
+        imageSize,
+        rotation,
+        cameraLensDirection,
+      );
+      final top = translateY(
+        face.boundingBox.top,
+        size,
+        imageSize,
+        rotation,
+        cameraLensDirection,
+      );
+      final right = translateX(
+        face.boundingBox.right,
+        size,
+        imageSize,
+        rotation,
+        cameraLensDirection,
+      );
+      final bottom = translateY(
+        face.boundingBox.bottom,
+        size,
+        imageSize,
+        rotation,
+        cameraLensDirection,
+      );
+
+      canvas.drawRect(
+        Rect.fromLTRB(left, top, right, bottom),
+        paint1,
+      );
+
+      void paintContour(FaceContourType type) {
+        final contour = face.contours[type];
+        if (contour?.points != null) {
+          for (final Point point in contour!.points) {
+            canvas.drawCircle(
+                Offset(
+                  translateX(
+                    point.x.toDouble(),
+                    size,
+                    imageSize,
+                    rotation,
+                    cameraLensDirection,
+                  ),
+                  translateY(
+                    point.y.toDouble(),
+                    size,
+                    imageSize,
+                    rotation,
+                    cameraLensDirection,
+                  ),
+                ),
+                1,
+                paint1);
+          }
+        }
+      }
+
+      void paintLandmark(FaceLandmarkType type) {
+        final landmark = face.landmarks[type];
+        if (landmark?.position != null) {
+          canvas.drawCircle(
+              Offset(
+                translateX(
+                  landmark!.position.x.toDouble(),
+                  size,
+                  imageSize,
+                  rotation,
+                  cameraLensDirection,
+                ),
+                translateY(
+                  landmark.position.y.toDouble(),
+                  size,
+                  imageSize,
+                  rotation,
+                  cameraLensDirection,
+                ),
+              ),
+              2,
+              paint2);
+        }
+      }
+
+      for (final type in FaceContourType.values) {
+        paintContour(type);
+      }
+
+      for (final type in FaceLandmarkType.values) {
+        paintLandmark(type);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(FaceDetectorPainter oldDelegate) {
+    return oldDelegate.imageSize != imageSize || oldDelegate.faces != faces;
+  }
+}
+
+double translateX(
+  double x,
+  Size canvasSize,
+  Size imageSize,
+  InputImageRotation rotation,
+  CameraLensDirection cameraLensDirection,
+) {
+  switch (rotation) {
+    case InputImageRotation.rotation90deg:
+      return x *
+          canvasSize.width /
+          (Platform.isIOS ? imageSize.width : imageSize.height);
+    case InputImageRotation.rotation270deg:
+      return canvasSize.width -
+          x *
+              canvasSize.width /
+              (Platform.isIOS ? imageSize.width : imageSize.height);
+    case InputImageRotation.rotation0deg:
+    case InputImageRotation.rotation180deg:
+      switch (cameraLensDirection) {
+        case CameraLensDirection.back:
+          return x * canvasSize.width / imageSize.width;
+        default:
+          return canvasSize.width - x * canvasSize.width / imageSize.width;
+      }
+  }
+}
+
+double translateY(
+  double y,
+  Size canvasSize,
+  Size imageSize,
+  InputImageRotation rotation,
+  CameraLensDirection cameraLensDirection,
+) {
+  switch (rotation) {
+    case InputImageRotation.rotation90deg:
+    case InputImageRotation.rotation270deg:
+      return y *
+          canvasSize.height /
+          (Platform.isIOS ? imageSize.height : imageSize.width);
+    case InputImageRotation.rotation0deg:
+    case InputImageRotation.rotation180deg:
+      return y * canvasSize.height / imageSize.height;
   }
 }
