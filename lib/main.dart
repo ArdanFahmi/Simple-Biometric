@@ -1,6 +1,8 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:app_settings/app_settings.dart';
 import 'package:background_fetch/background_fetch.dart';
@@ -10,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simple_biometric/camera_screen.dart';
@@ -26,6 +29,8 @@ import 'package:simple_biometric/state/internet_state.dart';
 import 'package:simple_biometric/state/photo_state.dart';
 import 'package:simple_biometric/state/presence_state.dart';
 import 'package:simple_biometric/utils/common.dart';
+import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
+import 'package:image/image.dart' as imglib;
 
 @pragma('vm:entry-point')
 void backgroundFetchHeadlessTask(HeadlessTask task) async {
@@ -63,12 +68,14 @@ class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
 
   @override
+  // ignore: library_private_types_in_public_api
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   final LocalAuthentication _localAuthentication = LocalAuthentication();
   static const _platform = MethodChannel('biometric_channel');
+  late File imgFile;
 
   Future<void> _registerFingerprint() async {
     PhotoState.instance.isFormRegister = false;
@@ -340,6 +347,145 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> loadLocalImage() async {
+    String imgName = "assets/images/adam3.png";
+    // Load the image data from assets
+    final byteData = await rootBundle.load(imgName);
+
+    // Get the application's directory
+    final tempDir = await getTemporaryDirectory();
+
+    // Create a file in the temporary directory
+    final file = File('${tempDir.path}/adam3.png');
+
+    // Write the image data to the file
+    await file.writeAsBytes(byteData.buffer.asUint8List());
+
+    final interpreter =
+        await tfl.Interpreter.fromAsset('assets/mobile_face_net.tflite');
+
+    imglib.Image? img = await imglib.decodeImageFile(file.path);
+
+    if (img != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (context) => CameraScreen(
+                  localImg: file,
+                  interpreter: interpreter,
+                  localImage: img,
+                )),
+      );
+    }
+  }
+
+  Future<void> _predictImageV2() async {
+    // Load and resize the image
+    String imgName = "assets/images/foto.png";
+    // Load the image data from assets
+    final byteData = await rootBundle.load(imgName);
+    // Get the application's directory
+    final tempDir = await getTemporaryDirectory();
+
+    // Create a file in the temporary directory
+    final file = File('${tempDir.path}/foto.png');
+
+    // Write the image data to the file
+    await file.writeAsBytes(byteData.buffer.asUint8List());
+
+    File imageFile = File(file.path);
+    Uint8List imageData = imageFile.readAsBytesSync();
+    imglib.Image image = imglib.decodeImage(imageData)!;
+    imglib.Image resizedImage = imglib.copyResize(image, width: 64, height: 64);
+
+    // Normalize the image data
+    List<List<List<double>>> input = List.generate(
+        64,
+        (y) => List.generate(64, (x) {
+              imglib.Pixel pixel = resizedImage.getPixel(x, y);
+
+              var r = pixel[0] / 255.0;
+              var g = pixel[1] / 255.0;
+              var b = pixel[2] / 255.0;
+
+              return [r, g, b];
+            }));
+
+    List<List<List<List<double>>>> inputTensor = [input];
+    // Load the model and predict
+    var output = List.filled(1 * 1, 0.0).reshape([1, 1]);
+
+    final interpreter = await tfl.Interpreter.fromAsset(
+        'assets/real_printed_face_model_CNN.tflite');
+    interpreter.run(inputTensor, output);
+    double prediction = output[0][0];
+    var result = prediction > 0.5 ? "Real" : "Printed";
+    print("Result $result");
+  }
+
+  Future<void> _faceRecognition() async {
+    String imgName = "assets/images/adam3.png";
+    // Load the image data from assets
+    final byteData = await rootBundle.load(imgName);
+    // Get the application's directory
+    final tempDir = await getTemporaryDirectory();
+
+    // Create a file in the temporary directory
+    final file = File('${tempDir.path}/adam3.png');
+
+    // Write the image data to the file
+    await file.writeAsBytes(byteData.buffer.asUint8List());
+
+    String imgName2 = "assets/images/adam4.png";
+    // Load the image data from assets
+    final byteData2 = await rootBundle.load(imgName2);
+
+    // Create a file in the temporary directory
+    final file2 = File('${tempDir.path}/adam4.png');
+
+    // Write the image data to the file
+    await file2.writeAsBytes(byteData2.buffer.asUint8List());
+
+    File imageFile = File(file.path);
+    Uint8List imageData = imageFile.readAsBytesSync();
+    imglib.Image image = imglib.decodeImage(imageData)!;
+
+    File imageFile2 = File(file2.path);
+    Uint8List imageData2 = imageFile2.readAsBytesSync();
+    imglib.Image image2 = imglib.decodeImage(imageData2)!;
+
+    // imglib.Image? croppedImage = cropToBox(image, _face.boundingBox,
+    //     inputImage.metadata!.rotation.rawValue);
+    imglib.Image croppedImage = imglib.copyResizeCropSquare(image, size: 112);
+
+    imglib.Image croppedImage2 = imglib.copyResizeCropSquare(image2, size: 112);
+
+    Float32List list = imageToByteListFloat32(croppedImage, 112, 128, 128);
+    Float32List list2 = imageToByteListFloat32(croppedImage2, 112, 128, 128);
+
+    List<dynamic> dynamicList = list.toList();
+    List<dynamic> dynamicList2 = list2.toList();
+
+    dynamicList = dynamicList.reshape([1, 112, 112, 3]);
+    dynamicList2 = dynamicList2.reshape([1, 112, 112, 3]);
+
+    List output = List.generate(1, (index) => List.filled(192, 0));
+    List output2 = List.generate(1, (index) => List.filled(192, 0));
+
+    final interpreter =
+        await tfl.Interpreter.fromAsset('assets/mobile_face_net.tflite');
+    interpreter.run(dynamicList, output);
+    interpreter.run(dynamicList2, output2);
+
+    output = output.reshape([192]);
+    output2 = output2.reshape([192]);
+
+    var predictedData = List.from(output);
+    var predictedData2 = List.from(output2);
+
+    compareExistSavedFaces(predictedData, predictedData2).toUpperCase();
+  }
+
   @override
   void initState() {
     _listenStatusLocation();
@@ -361,6 +507,25 @@ class _HomePageState extends State<HomePage> {
         })
       ],
       child: Scaffold(
+        floatingActionButton: FloatingActionButton.extended(
+          heroTag: "fab",
+          backgroundColor: Colors.blue,
+          onPressed: () {
+            _predictImageV2();
+            // loadLocalImage();
+          },
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(50.0)),
+          label: const Text(
+            'Press Me!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
         appBar: AppBar(title: const Text("Simple Biometric")),
         body: Center(
             child: Column(
@@ -445,13 +610,17 @@ class _HomePageState extends State<HomePage> {
             ),
             ElevatedButton(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const CameraScreen()),
-                  );
+                  loadLocalImage();
                 },
                 child: const Text("Face Recognition")),
+            const SizedBox(
+              height: 20,
+            ),
+            ElevatedButton(
+                onPressed: () {
+                  _faceRecognition();
+                },
+                child: const Text("Face Recognition [2]")),
           ],
         )),
       ),
