@@ -1,15 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_ml_kit/google_ml_kit.dart';
 import 'package:intl/intl.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:math' show cos, sqrt, asin, pow;
 import 'package:image/image.dart' as imglib;
 import 'dart:ui' as ui;
+
+import 'package:path_provider/path_provider.dart';
+import 'package:tflite_flutter/tflite_flutter.dart';
 
 String getCurrentDateFormatted() {
   final now = DateTime.now();
@@ -363,4 +368,28 @@ imglib.Image _convertYUV420(CameraImage image, CameraLensDirection direction) {
   return (direction == CameraLensDirection.front)
       ? imglib.copyRotate(img, angle: -90)
       : imglib.copyRotate(img, angle: 90);
+}
+
+Future<File> loadImageFromAsset(String imgLocalName) async {
+  String imgName = "assets/images/$imgLocalName";
+  // Load the image data from assets
+  final byteData = await rootBundle.load(imgName);
+  // Get the application's directory
+  final tempDir = await getTemporaryDirectory();
+
+  // Create a file in the temporary directory
+  final file = File('${tempDir.path}/$imgLocalName');
+
+  // Write the image data to the file
+  return await file.writeAsBytes(byteData.buffer.asUint8List());
+}
+
+List<dynamic> recognizeFace(imglib.Image img, Interpreter interpreter) {
+  Float32List list = imageToByteListFloat32(img, 112, 128, 128);
+  List<dynamic> dynamicList = list.toList();
+  dynamicList = dynamicList.reshape([1, 112, 112, 3]);
+  List output = List.generate(1, (index) => List.filled(192, 0));
+  interpreter.run(dynamicList, output);
+  output = output.reshape([192]);
+  return List.from(output);
 }

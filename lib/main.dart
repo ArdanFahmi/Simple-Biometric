@@ -10,6 +10,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_ml_kit/google_ml_kit.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -76,6 +77,12 @@ class _HomePageState extends State<HomePage> {
   final LocalAuthentication _localAuthentication = LocalAuthentication();
   static const _platform = MethodChannel('biometric_channel');
   late File imgFile;
+  final FaceDetector _faceDetector = FaceDetector(
+    options: FaceDetectorOptions(
+      enableContours: true,
+      enableLandmarks: true,
+    ),
+  );
 
   Future<void> _registerFingerprint() async {
     PhotoState.instance.isFormRegister = false;
@@ -348,34 +355,26 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> loadLocalImage() async {
-    String imgName = "assets/images/adam3.png";
-    // Load the image data from assets
-    final byteData = await rootBundle.load(imgName);
-
-    // Get the application's directory
-    final tempDir = await getTemporaryDirectory();
-
-    // Create a file in the temporary directory
-    final file = File('${tempDir.path}/adam3.png');
-
-    // Write the image data to the file
-    await file.writeAsBytes(byteData.buffer.asUint8List());
+    File imgLocal = await loadImageFromAsset("face.jpg");
+    imglib.Image? img = await imglib.decodeImageFile(imgLocal.path);
 
     final interpreter =
         await tfl.Interpreter.fromAsset('assets/mobile_face_net.tflite');
 
-    imglib.Image? img = await imglib.decodeImageFile(file.path);
-
     if (img != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (context) => CameraScreen(
-                  localImg: file,
-                  interpreter: interpreter,
-                  localImage: img,
-                )),
-      );
+      var listRecognizeLocal =
+          await _processImageLocal(imgLocal, img, interpreter);
+      if (listRecognizeLocal != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (context) => CameraScreen(
+                    interpreter: interpreter,
+                    localImage: img,
+                    listRecognizeLocalImg: listRecognizeLocal,
+                  )),
+        );
+      }
     }
   }
 
@@ -486,6 +485,34 @@ class _HomePageState extends State<HomePage> {
     compareExistSavedFaces(predictedData, predictedData2).toUpperCase();
   }
 
+  // result : cropped image -> list
+  Future<List?> _processImageLocal(File fileImgLocal, imglib.Image imgLocal,
+      tfl.Interpreter interpreter) async {
+    InputImage inputLocalImage = InputImage.fromFile(fileImgLocal);
+
+    final localFaces = await _faceDetector.processImage(inputLocalImage);
+    if (localFaces.isNotEmpty) {
+      imglib.Image croppedLocalImage = imgLocal;
+      var croppedBoundary = 0;
+      for (Face localFace in localFaces) {
+        double x, y, w, h;
+        x = (localFace.boundingBox.left - croppedBoundary);
+        y = (localFace.boundingBox.top - croppedBoundary);
+        w = (localFace.boundingBox.width + croppedBoundary);
+        h = (localFace.boundingBox.height + croppedBoundary);
+
+        croppedLocalImage = imglib.copyCrop(croppedLocalImage,
+            x: x.round(), y: y.round(), width: w.round(), height: h.round());
+
+        croppedLocalImage =
+            imglib.copyResizeCropSquare(croppedLocalImage, size: 112);
+      }
+      return recognizeFace(croppedLocalImage, interpreter);
+    } else {
+      return null;
+    }
+  }
+
   @override
   void initState() {
     _listenStatusLocation();
@@ -517,7 +544,7 @@ class _HomePageState extends State<HomePage> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(50.0)),
           label: const Text(
-            'Press Me!',
+            'Face Prediction',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white,
@@ -620,7 +647,7 @@ class _HomePageState extends State<HomePage> {
                 onPressed: () {
                   _faceRecognition();
                 },
-                child: const Text("Face Prediction")),
+                child: const Text("Face Recognition Local Photo")),
           ],
         )),
       ),

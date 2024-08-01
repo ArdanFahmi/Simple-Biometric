@@ -13,14 +13,14 @@ import 'package:image/image.dart' as imglib;
 import 'dart:ui' as ui;
 
 class CameraScreen extends StatefulWidget {
-  final File localImg;
   final Interpreter interpreter;
   final imglib.Image localImage;
+  final List<dynamic> listRecognizeLocalImg;
   const CameraScreen(
       {super.key,
-      required this.localImg,
       required this.interpreter,
-      required this.localImage});
+      required this.localImage,
+      required this.listRecognizeLocalImg});
 
   @override
   // ignore: library_private_types_in_public_api
@@ -46,7 +46,7 @@ class _CameraScreenState extends State<CameraScreen> {
   CustomPaint? _customPaint;
   bool _changingCameraLens = false;
   int _cameraIndex = -1;
-  final _cameraLensDirection = CameraLensDirection.front;
+  final _cameraLensDirection = CameraLensDirection.back;
 
   @override
   void initState() {
@@ -111,7 +111,7 @@ class _CameraScreenState extends State<CameraScreen> {
     if (inputImage != null) {
       // _processImage(inputImage);
       // _verifyFace(inputImage, widget.localImg);
-      _processImageV2(inputImage, widget.localImg, widget.interpreter);
+      _processImageV2(inputImage, widget.interpreter);
     }
   }
 
@@ -260,33 +260,16 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Future<void> _processImageV2(
-      InputImage inputImage, File localImage, Interpreter interpreter) async {
+      InputImage inputImage, Interpreter interpreter) async {
     if (_isBusy) return;
     _isBusy = true;
-    InputImage inputLocalImage = InputImage.fromFile(localImage);
 
     final inputFaces = await _faceDetector.processImage(inputImage);
-    final localFaces = await _faceDetector.processImage(inputLocalImage);
-    if (inputFaces.isNotEmpty && localFaces.isNotEmpty) {
+    if (inputFaces.isNotEmpty) {
       imglib.Image convertedImage = decodeYUV420SP(inputImage);
 
       var croppedBoundary = 0;
       imglib.Image croppedImage = convertedImage;
-      imglib.Image croppedLocalImage = widget.localImage;
-
-      for (Face localFace in localFaces) {
-        double x, y, w, h;
-        x = (localFace.boundingBox.left - croppedBoundary);
-        y = (localFace.boundingBox.top - croppedBoundary);
-        w = (localFace.boundingBox.width + croppedBoundary);
-        h = (localFace.boundingBox.height + croppedBoundary);
-
-        croppedLocalImage = imglib.copyCrop(croppedLocalImage,
-            x: x.round(), y: y.round(), width: w.round(), height: h.round());
-
-        croppedLocalImage =
-            imglib.copyResizeCropSquare(croppedLocalImage, size: 112);
-      }
       for (Face inputFace in inputFaces) {
         double x, y, w, h;
         x = (inputFace.boundingBox.left - croppedBoundary);
@@ -298,52 +281,12 @@ class _CameraScreenState extends State<CameraScreen> {
             x: x.round(), y: y.round(), width: w.round(), height: h.round());
 
         croppedImage = imglib.copyResizeCropSquare(croppedImage, size: 112);
-
-        _recognizeFace(croppedImage, croppedLocalImage);
-
-        // List<int> pngBytes = imglib.encodePng(croppedImage);
-
-        // // Get the temporary directory
-        // final Directory tempDir = await getTemporaryDirectory();
-
-        // // Create a unique file name
-        // final String fileName =
-        //     '${DateTime.now().millisecondsSinceEpoch}_coba.png';
-
-        // // Create a file in the temporary directory
-        // final File file = File('${tempDir.path}/$fileName');
-
-        // // Write the image bytes to the file
-        // await file.writeAsBytes(pngBytes);
-        // throw "stopped";
       }
+      var listRecognizeStreamImg = recognizeFace(croppedImage, interpreter);
+      compareExistSavedFaces(
+          listRecognizeStreamImg, widget.listRecognizeLocalImg);
     }
     _isBusy = false;
-  }
-
-  void _recognizeFace(imglib.Image img, imglib.Image localImg) {
-    Float32List list = imageToByteListFloat32(img, 112, 128, 128);
-    Float32List list2 = imageToByteListFloat32(localImg, 112, 128, 128);
-
-    List<dynamic> dynamicList = list.toList();
-    List<dynamic> dynamicList2 = list2.toList();
-
-    dynamicList = dynamicList.reshape([1, 112, 112, 3]);
-    dynamicList2 = dynamicList2.reshape([1, 112, 112, 3]);
-
-    List output = List.generate(1, (index) => List.filled(192, 0));
-    List output2 = List.generate(1, (index) => List.filled(192, 0));
-
-    widget.interpreter.run(dynamicList, output);
-    widget.interpreter.run(dynamicList2, output2);
-
-    output = output.reshape([192]);
-    output2 = output2.reshape([192]);
-
-    var predictedData = List.from(output);
-    var predictedData2 = List.from(output2);
-
-    compareExistSavedFaces(predictedData, predictedData2);
   }
 
   Future<ui.Image> convertToUiImage(imglib.Image image) async {
