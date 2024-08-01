@@ -612,7 +612,7 @@ class _HomePageState extends State<HomePage> {
                 onPressed: () {
                   loadLocalImage();
                 },
-                child: const Text("Face Recognition")),
+                child: const Text("Stream Face Recognition")),
             const SizedBox(
               height: 20,
             ),
@@ -620,7 +620,7 @@ class _HomePageState extends State<HomePage> {
                 onPressed: () {
                   _faceRecognition();
                 },
-                child: const Text("Face Recognition [2]")),
+                child: const Text("Face Prediction")),
           ],
         )),
       ),

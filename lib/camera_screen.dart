@@ -44,6 +44,9 @@ class _CameraScreenState extends State<CameraScreen> {
     ),
   );
   CustomPaint? _customPaint;
+  bool _changingCameraLens = false;
+  int _cameraIndex = -1;
+  final _cameraLensDirection = CameraLensDirection.front;
 
   @override
   void initState() {
@@ -60,12 +63,21 @@ class _CameraScreenState extends State<CameraScreen> {
 
   _intialize() async {
     _cameras = await availableCameras();
-    await _startLiveFeed();
+    for (var i = 0; i < _cameras.length; i++) {
+      if (_cameras[i].lensDirection == _cameraLensDirection) {
+        _cameraIndex = i;
+        break;
+      }
+    }
+    if (_cameraIndex != -1) {
+      _startLiveFeed();
+    }
   }
 
   _startLiveFeed() async {
+    final camera = _cameras[_cameraIndex];
     controller = CameraController(
-      _cameras[0],
+      camera,
       // Set to ResolutionPreset.high. Do NOT set it to ResolutionPreset.max because for some phones does NOT work.
       ResolutionPreset.high,
       enableAudio: false,
@@ -83,6 +95,15 @@ class _CameraScreenState extends State<CameraScreen> {
     await controller?.stopImageStream();
     await controller?.dispose();
     controller = null;
+  }
+
+  Future _switchLiveCamera() async {
+    setState(() => _changingCameraLens = true);
+    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
+
+    await _stopLiveFeed();
+    await _startLiveFeed();
+    setState(() => _changingCameraLens = false);
   }
 
   void _processCameraImage(CameraImage image) {
@@ -277,6 +298,7 @@ class _CameraScreenState extends State<CameraScreen> {
             x: x.round(), y: y.round(), width: w.round(), height: h.round());
 
         croppedImage = imglib.copyResizeCropSquare(croppedImage, size: 112);
+
         _recognizeFace(croppedImage, croppedLocalImage);
 
         // List<int> pngBytes = imglib.encodePng(croppedImage);
@@ -338,14 +360,72 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!controller!.value.isInitialized) {
-      return Container();
-    }
-    return MaterialApp(
-      home: CameraPreview(
-        controller!,
-        child: _customPaint,
+    return Scaffold(body: _liveFeedBody(context));
+  }
+
+  Widget _liveFeedBody(BuildContext ctx) {
+    if (_cameras.isEmpty) return Container();
+    if (controller == null) return Container();
+    if (controller?.value.isInitialized == false) return Container();
+    return ColoredBox(
+      color: Colors.black,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Center(
+            child: _changingCameraLens
+                ? const Center(
+                    child: Text('Changing camera lens'),
+                  )
+                : CameraPreview(
+                    controller!,
+                    child: _customPaint,
+                  ),
+          ),
+          _backButton(ctx),
+          _switchLiveCameraToggle(),
+        ],
       ),
     );
   }
+
+  Widget _backButton(BuildContext ctx) => Positioned(
+        top: 40,
+        left: 8,
+        child: SizedBox(
+          height: 50.0,
+          width: 50.0,
+          child: FloatingActionButton(
+            heroTag: Object(),
+            onPressed: () => Navigator.of(ctx).pop(),
+            backgroundColor: Colors.black54,
+            child: const Icon(
+              Icons.arrow_back_ios_outlined,
+              size: 20,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+
+  Widget _switchLiveCameraToggle() => Positioned(
+        bottom: 8,
+        right: 8,
+        child: SizedBox(
+          height: 50.0,
+          width: 50.0,
+          child: FloatingActionButton(
+            heroTag: Object(),
+            onPressed: _switchLiveCamera,
+            backgroundColor: Colors.black54,
+            child: Icon(
+              Platform.isIOS
+                  ? Icons.flip_camera_ios_outlined
+                  : Icons.flip_camera_android_outlined,
+              size: 25,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
 }
