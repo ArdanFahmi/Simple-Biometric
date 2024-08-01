@@ -14,6 +14,7 @@ import 'package:image/image.dart' as imglib;
 import 'dart:ui' as ui;
 
 import 'package:path_provider/path_provider.dart';
+import 'package:simple_biometric/utils/loading.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 String getCurrentDateFormatted() {
@@ -131,6 +132,9 @@ String compareExistSavedFaces(List currEmb, List localEmb) {
   if (currDist <= threshold && currDist < minDist) {
     minDist = currDist;
   }
+  if (currDist <= threshold) {
+    predRes = "VERIFIED";
+  }
   // for (String label in data.keys) {
   //   currDist = euclideanDistance(currEmb, currEmb);
   //   if (currDist <= threshold && currDist < minDist) {
@@ -138,7 +142,8 @@ String compareExistSavedFaces(List currEmb, List localEmb) {
   //     predRes = label;
   //   }
   // }
-  print("result distance " + currDist.toString() + " ");
+  print("result distance $currDist");
+  print("result pred -> $predRes");
   return predRes;
 }
 
@@ -189,7 +194,8 @@ imglib.Image nv21ToImage(CameraImage cameraImage) {
   return imgImage;
 }
 
-imglib.Image decodeYUV420SP(InputImage image) {
+imglib.Image decodeYUV420SP(
+    InputImage image, CameraLensDirection _cameraLensDirection) {
   final width = image.metadata!.size.width.toInt();
   final height = image.metadata!.size.height.toInt();
 
@@ -251,16 +257,11 @@ imglib.Image decodeYUV420SP(InputImage image) {
   }
 
   // Rotate the image so it's the correct oreintation.
-  return imglib.copyRotate(outImg, angle: 90);
+  return imglib.copyRotate(outImg,
+      angle: _cameraLensDirection == CameraLensDirection.front ? -90 : 90);
 }
 
-Future<Uint8List> _nv21ToImage(Uint8List nv21, int width, int height) async {
-  final imglib.Image image = _convertNV21ToRGBImage(nv21, width, height);
-  final Uint8List newImg = Uint8List.fromList(imglib.encodeJpg(image));
-  return newImg;
-}
-
-imglib.Image _convertNV21ToRGBImage(Uint8List nv21, int width, int height) {
+imglib.Image convertNV21ToRGBImage(Uint8List nv21, int width, int height) {
   final int frameSize = width * height;
   final imglib.Image img = imglib.Image(width: width, height: height);
   int uvp = frameSize;
@@ -292,21 +293,15 @@ imglib.Image _convertNV21ToRGBImage(Uint8List nv21, int width, int height) {
   return img;
 }
 
-imglib.Image? _convertCameraImage(
+imglib.Image? convertCameraImage(
     CameraImage image, CameraLensDirection direction) {
   try {
     imglib.Image img;
     if (image.format.group == ImageFormatGroup.yuv420) {
-      img = _convertYUV420(image, direction);
+      img = convertYUV420(image, direction);
     } else if (image.format.group == ImageFormatGroup.bgra8888) {
-      img = _convertBGRA8888(image, direction);
+      img = convertBGRA8888(image, direction);
     } else if (image.format.group == ImageFormatGroup.nv21) {
-      // Uint8List.fromList(elements)
-      // final Uint8List newImg =
-      //     Uint8List.fromList(imglib.encodeJpg(image as imglib.Image));
-      // var abc = _nv21ToImage(nv21, width, height);
-      // imglib.Image image2 = imglib.decodeImage(newImg)!;
-      // img = image2;
       img = nv21ToImage(image);
     } else {
       throw UnsupportedError('Unsupported image format: ${image.format.group}');
@@ -319,8 +314,7 @@ imglib.Image? _convertCameraImage(
 }
 
 // Convert BGRA8888 format image to imglib.Image
-imglib.Image _convertBGRA8888(
-    CameraImage image, CameraLensDirection direction) {
+imglib.Image convertBGRA8888(CameraImage image, CameraLensDirection direction) {
   final img = imglib.Image.fromBytes(
     width: image.width,
     height: image.height,
@@ -335,7 +329,7 @@ imglib.Image _convertBGRA8888(
 }
 
 // Convert YUV420 format image to imglib.Image
-imglib.Image _convertYUV420(CameraImage image, CameraLensDirection direction) {
+imglib.Image convertYUV420(CameraImage image, CameraLensDirection direction) {
   final width = image.width;
   final height = image.height;
   final img = imglib.Image(width: width, height: height);
@@ -392,4 +386,31 @@ List<dynamic> recognizeFace(imglib.Image img, Interpreter interpreter) {
   interpreter.run(dynamicList, output);
   output = output.reshape([192]);
   return List.from(output);
+}
+
+showDialogLoading(BuildContext ctx) {
+  showDialog(
+      barrierDismissible: false,
+      context: ctx,
+      builder: (BuildContext context) {
+        // ignore: deprecated_member_use
+        return WillPopScope(
+            onWillPop: () async => false, child: const Loading());
+      });
+}
+
+Future<void> imgToTempDir(imglib.Image img) async {
+  List<int> pngBytes = imglib.encodePng(img);
+
+  // Get the temporary directory
+  final Directory tempDir = await getTemporaryDirectory();
+
+  // Create a unique file name
+  final String fileName = '${DateTime.now().millisecondsSinceEpoch}.png';
+
+  // Create a file in the temporary directory
+  final File file = File('${tempDir.path}/$fileName');
+
+  // Write the image bytes to the file
+  await file.writeAsBytes(pngBytes);
 }

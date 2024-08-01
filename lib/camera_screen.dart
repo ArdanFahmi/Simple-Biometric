@@ -1,7 +1,8 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +11,6 @@ import 'package:simple_biometric/face_detector_painter.dart';
 import 'package:simple_biometric/utils/common.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as imglib;
-import 'dart:ui' as ui;
 
 class CameraScreen extends StatefulWidget {
   final Interpreter interpreter;
@@ -46,7 +46,7 @@ class _CameraScreenState extends State<CameraScreen> {
   CustomPaint? _customPaint;
   bool _changingCameraLens = false;
   int _cameraIndex = -1;
-  final _cameraLensDirection = CameraLensDirection.back;
+  final _cameraLensDirection = CameraLensDirection.front;
 
   @override
   void initState() {
@@ -118,7 +118,7 @@ class _CameraScreenState extends State<CameraScreen> {
   InputImage? _inputImageFromCameraImage(CameraImage image) {
     if (controller == null) return null;
 
-    final camera = _cameras[0];
+    final camera = _cameras[_cameraIndex];
     final sensorOrientation = camera.sensorOrientation;
     // print(
     //     'lensDirection: ${camera.lensDirection}, sensorOrientation: $sensorOrientation, ${controller.value.deviceOrientation} ${controller.value.lockedCaptureOrientation} ${controller.value.isCaptureOrientationLocked}');
@@ -266,7 +266,8 @@ class _CameraScreenState extends State<CameraScreen> {
 
     final inputFaces = await _faceDetector.processImage(inputImage);
     if (inputFaces.isNotEmpty) {
-      imglib.Image convertedImage = decodeYUV420SP(inputImage);
+      imglib.Image convertedImage =
+          decodeYUV420SP(inputImage, _cameraLensDirection);
 
       var croppedBoundary = 0;
       imglib.Image croppedImage = convertedImage;
@@ -282,23 +283,64 @@ class _CameraScreenState extends State<CameraScreen> {
 
         croppedImage = imglib.copyResizeCropSquare(croppedImage, size: 112);
       }
+      final painter = FaceDetectorPainter(inputFaces, inputImage.metadata!.size,
+          inputImage.metadata!.rotation, _cameraLensDirection);
+      _customPaint = CustomPaint(painter: painter);
+
       var listRecognizeStreamImg = recognizeFace(croppedImage, interpreter);
-      compareExistSavedFaces(
+      String resultCompare = compareExistSavedFaces(
           listRecognizeStreamImg, widget.listRecognizeLocalImg);
+
+      if (resultCompare == "VERIFIED") {
+        await _stopLiveFeed();
+        showDialogLoading(context);
+
+        setState(() {}); //refresh state
+        await Future.delayed(const Duration(seconds: 1));
+
+        String resultPredicted = await _predictImage(croppedImage);
+
+        Navigator.pop(context); //close dialog
+        showSnackbar(context, resultPredicted,
+            resultPredicted == "REAL" ? Colors.green : Colors.red);
+      }
+    } else {
+      _customPaint = null;
     }
     _isBusy = false;
+    if (mounted) {
+      setState(() {});
+    }
   }
 
-  Future<ui.Image> convertToUiImage(imglib.Image image) async {
-    final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-      Uint8List.fromList(imglib.encodePng(image)),
-      image.width,
-      image.height,
-      ui.PixelFormat.rgba8888,
-      (img) => completer.complete(img),
-    );
-    return completer.future;
+  // result : printed or real
+  Future<String> _predictImage(imglib.Image imgStream) async {
+    imglib.Image resizedImage =
+        imglib.copyResize(imgStream, width: 64, height: 64);
+
+    // Normalize the image data
+    List<List<List<double>>> input = List.generate(
+        64,
+        (y) => List.generate(64, (x) {
+              imglib.Pixel pixel = resizedImage.getPixel(x, y);
+
+              var r = pixel[0] / 255.0;
+              var g = pixel[1] / 255.0;
+              var b = pixel[2] / 255.0;
+
+              return [r, g, b];
+            }));
+
+    List<List<List<List<double>>>> inputTensor = [input];
+    // Load the model and predict
+    var output = List.filled(1 * 1, 0.0).reshape([1, 1]);
+
+    final interpreter = await Interpreter.fromAsset(
+        'assets/real_printed_face_model_CNN.tflite');
+    interpreter.run(inputTensor, output);
+
+    double prediction = output[0][0];
+    return prediction > 0.5 ? "REAL" : "PRINTED";
   }
 
   @override

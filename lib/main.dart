@@ -355,7 +355,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> loadLocalImage() async {
-    File imgLocal = await loadImageFromAsset("face.jpg");
+    File imgLocal = await loadImageFromAsset("fotoku.png");
     imglib.Image? img = await imglib.decodeImageFile(imgLocal.path);
 
     final interpreter =
@@ -380,14 +380,14 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _predictImageV2() async {
     // Load and resize the image
-    String imgName = "assets/images/foto.png";
+    String imgName = "assets/images/fotoku.png";
     // Load the image data from assets
     final byteData = await rootBundle.load(imgName);
     // Get the application's directory
     final tempDir = await getTemporaryDirectory();
 
     // Create a file in the temporary directory
-    final file = File('${tempDir.path}/foto.png');
+    final file = File('${tempDir.path}/fotoku.png');
 
     // Write the image data to the file
     await file.writeAsBytes(byteData.buffer.asUint8List());
