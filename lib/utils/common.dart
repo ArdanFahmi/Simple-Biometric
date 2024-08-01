@@ -133,7 +133,7 @@ String compareExistSavedFaces(List currEmb, List localEmb) {
   //     predRes = label;
   //   }
   // }
-  print("result distance "+currDist.toString() + " ");
+  print("result distance " + currDist.toString() + " ");
   return predRes;
 }
 
@@ -247,4 +247,120 @@ imglib.Image decodeYUV420SP(InputImage image) {
 
   // Rotate the image so it's the correct oreintation.
   return imglib.copyRotate(outImg, angle: 90);
+}
+
+Future<Uint8List> _nv21ToImage(Uint8List nv21, int width, int height) async {
+  final imglib.Image image = _convertNV21ToRGBImage(nv21, width, height);
+  final Uint8List newImg = Uint8List.fromList(imglib.encodeJpg(image));
+  return newImg;
+}
+
+imglib.Image _convertNV21ToRGBImage(Uint8List nv21, int width, int height) {
+  final int frameSize = width * height;
+  final imglib.Image img = imglib.Image(width: width, height: height);
+  int uvp = frameSize;
+  int u = 0, v = 0;
+
+  for (int j = 0, yp = 0; j < height; j++) {
+    for (int i = 0; i < width; i++, yp++) {
+      int y = (0xff & nv21[yp]) - 16;
+      if (y < 0) y = 0;
+      if ((i & 1) == 0) {
+        v = (0xff & nv21[uvp++]) - 128;
+        u = (0xff & nv21[uvp++]) - 128;
+      }
+
+      int r = (y + 1.370705 * v).round();
+      int g = (y - 0.337633 * u - 0.698001 * v).round();
+      int b = (y + 1.732446 * u).round();
+
+      r = r.clamp(0, 255);
+      g = g.clamp(0, 255);
+      b = b.clamp(0, 255);
+
+      // ARGB color where alpha is 255 (opaque)
+      int color = (255 << 24) | (r << 16) | (g << 8) | b;
+      img.setPixel(i, j, color as imglib.Color);
+    }
+  }
+
+  return img;
+}
+
+imglib.Image? _convertCameraImage(
+    CameraImage image, CameraLensDirection direction) {
+  try {
+    imglib.Image img;
+    if (image.format.group == ImageFormatGroup.yuv420) {
+      img = _convertYUV420(image, direction);
+    } else if (image.format.group == ImageFormatGroup.bgra8888) {
+      img = _convertBGRA8888(image, direction);
+    } else if (image.format.group == ImageFormatGroup.nv21) {
+      // Uint8List.fromList(elements)
+      // final Uint8List newImg =
+      //     Uint8List.fromList(imglib.encodeJpg(image as imglib.Image));
+      // var abc = _nv21ToImage(nv21, width, height);
+      // imglib.Image image2 = imglib.decodeImage(newImg)!;
+      // img = image2;
+      img = nv21ToImage(image);
+    } else {
+      throw UnsupportedError('Unsupported image format: ${image.format.group}');
+    }
+    return img;
+  } catch (e) {
+    print("Error converting image: $e");
+    return null;
+  }
+}
+
+// Convert BGRA8888 format image to imglib.Image
+imglib.Image _convertBGRA8888(
+    CameraImage image, CameraLensDirection direction) {
+  final img = imglib.Image.fromBytes(
+    width: image.width,
+    height: image.height,
+    bytes: image.planes[0].bytes.buffer,
+    format: imglib.Format.uint8,
+  );
+
+  // Rotate the image based on the camera lens direction
+  return (direction == CameraLensDirection.front)
+      ? imglib.copyRotate(img, angle: -90)
+      : imglib.copyRotate(img, angle: 90);
+}
+
+// Convert YUV420 format image to imglib.Image
+imglib.Image _convertYUV420(CameraImage image, CameraLensDirection direction) {
+  final width = image.width;
+  final height = image.height;
+  final img = imglib.Image(width: width, height: height);
+  const int hexFF = 0xFF000000;
+
+  final uvyStride = image.planes[1].bytesPerRow;
+  final uvPixelStride = image.planes[1].bytesPerPixel ?? 1;
+
+  for (int x = 0; x < width; x++) {
+    for (int y = 0; y < height; y++) {
+      final uvIndex = uvPixelStride * (x ~/ 2) + uvyStride * (y ~/ 2);
+      final index = y * width + x;
+
+      final yp = image.planes[0].bytes[index];
+      final up = image.planes[1].bytes[uvIndex];
+      final vp = image.planes[2].bytes[uvIndex];
+
+      int r = (yp + vp * 1436 / 1024 - 179).round().clamp(0, 255);
+      int g = (yp - up * 46549 / 131072 + 44 - vp * 93604 / 131072 + 91)
+          .round()
+          .clamp(0, 255);
+      int b = (yp + up * 1814 / 1024 - 227).round().clamp(0, 255);
+
+      // Set the pixel value in the image
+      img.setPixel(x, y, (hexFF | (r << 16) | (g << 8) | b) as imglib.Color);
+    }
+  }
+
+  // Rotate the image based on the camera lens direction
+  return (direction == CameraLensDirection.front)
+      ? imglib.copyRotate(img, angle: -90)
+      : imglib.copyRotate(img, angle: 90);
 }
